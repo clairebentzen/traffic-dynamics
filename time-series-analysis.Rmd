@@ -1,5 +1,5 @@
 ---
-title: "time-series-analysis"
+title: "Unravelling Urban Traffic Dynamics: A Time-Series Analysis"
 author: "Claire Bentzen"
 date: "2023-11-15"
 output: html_document
@@ -9,22 +9,98 @@ output: html_document
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
-## R Markdown
-
-This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
-
-When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
-
-```{r cars}
-summary(cars)
+```{r packages}
+library(ggplot2)
+library(dplyr)
 ```
 
-## Including Plots
+## Introduction
+```{r}
+# read in traffic data
+traffic <- read.csv("traffic.csv")
 
-You can also embed plots, for example:
+# convert date column ot datetime
+traffic$DateTime <- as.POSIXct(traffic$DateTime, format="%Y-%m-%d %H:%M:%S")
 
-```{r pressure, echo=FALSE}
-plot(pressure)
+# convert Junction column to categorical
+traffic$Junction <- factor(traffic$Junction)
 ```
 
-Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
+```{r}
+# check for missing values by column
+colSums(is.na(traffic))
+
+# check for duplicate rows
+sum(duplicated(traffic))
+```
+
+## Exploratory Data Analysis 
+### Explore Vehicle Counts Aggregated by Day
+```{r, warning=FALSE, message=FALSE}
+# aggregate by date
+traffic$Date <- as.Date(traffic$DateTime)
+
+# group by Date and Junction, then calculate daily counts
+traffic_daily <- traffic %>%
+  group_by(Date, Junction) %>%
+  summarize(DailyCount = sum(Vehicles))
+
+# plot daily vehicle counts
+ggplot(traffic_daily, aes(x = Date, y = DailyCount, color = Junction)) +
+  geom_line() +
+  labs(title = "Daily Vehicles Counts by Junction",
+       x = "Date",
+       y = "Vehicle Count",
+       color = "Junction") +
+  theme_minimal()
+```
+
+### Explore Vehicle Counts by Hour
+```{r, warning=FALSE}
+# plot hourly vehicle counts
+ggplot(traffic, aes(x = DateTime, y = Vehicles, color = Junction)) +
+  geom_line() +
+  labs(title = "Hourly Vehicles Counts by Junction",
+       x = "DateTime",
+       y = "Vehicles",
+       color = "Junction") +
+  theme_minimal()
+```
+
+```{r}
+# average vehicle counts grouped by Junction
+vehicle_avg <- traffic %>%
+  group_by(Junction) %>%
+  summarize(AvgVehicleCount = mean(Vehicles))
+vehicle_avg
+```
+
+### Time Series Plot by Junction
+```{r, warning=FALSE, message=FALSE}
+# split data into each junction
+traffic1 <- traffic[traffic$Junction == 1, ]
+traffic2 <- traffic[traffic$Junction == 2, ]
+traffic3 <- traffic[traffic$Junction == 3, ]
+traffic4 <- traffic[traffic$Junction == 4, ]
+
+# plot each junction vehicle counts
+par(mfrow = c(2, 2))
+
+# junction 1 time series
+traffic1.ts <- ts(traffic1$Vehicles)
+plot.ts(traffic1.ts, xlab = "Time", ylab = "Vehicle Count", main = "Junction 1 TS Plot of Vehicles") 
+
+# junction 2 time series
+traffic2.ts <- ts(traffic2$Vehicles)
+plot.ts(traffic2.ts, xlab = "Time", ylab = "Vehicle Count", main = "Junction 2 TS Plot of Vehicles") 
+
+# junction 3 time series
+traffic3.ts <- ts(traffic3$Vehicles)
+plot.ts(traffic3.ts, xlab = "Time", ylab = "Vehicle Count", main = "Junction 3 TS Plot of Vehicles") 
+
+# junction 4 time series
+traffic4.ts <- ts(traffic4$Vehicles)
+plot.ts(traffic4.ts, xlab = "Time", ylab = "Vehicle Count", main = "Junction 4 TS Plot of Vehicles") 
+```
+
+
