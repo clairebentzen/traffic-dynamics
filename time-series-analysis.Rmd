@@ -87,19 +87,19 @@ traffic4 <- traffic[traffic$Junction == 4, ]
 par(mfrow = c(2, 2))
 
 # junction 1 time series
-traffic1.ts <- ts(traffic1$Vehicles)
+traffic1.ts <- ts(traffic1$Vehicles, frequency = 24)
 plot.ts(traffic1.ts, xlab = "Time", ylab = "Vehicle Count", main = "Junction 1 TS Plot of Vehicles") 
 
 # junction 2 time series
-traffic2.ts <- ts(traffic2$Vehicles)
+traffic2.ts <- ts(traffic2$Vehicles, frequency = 24)
 plot.ts(traffic2.ts, xlab = "Time", ylab = "Vehicle Count", main = "Junction 2 TS Plot of Vehicles") 
 
 # junction 3 time series
-traffic3.ts <- ts(traffic3$Vehicles)
+traffic3.ts <- ts(traffic3$Vehicles, frequency = 24)
 plot.ts(traffic3.ts, xlab = "Time", ylab = "Vehicle Count", main = "Junction 3 TS Plot of Vehicles") 
 
 # junction 4 time series
-traffic4.ts <- ts(traffic4$Vehicles)
+traffic4.ts <- ts(traffic4$Vehicles, frequency = 24)
 plot.ts(traffic4.ts, xlab = "Time", ylab = "Vehicle Count", main = "Junction 4 TS Plot of Vehicles") 
 ```
 
