@@ -19,6 +19,8 @@ library(dplyr)
 # read in traffic data
 traffic <- read.csv("traffic.csv")
 
+traffic
+
 # convert date column ot datetime
 traffic$DateTime <- as.POSIXct(traffic$DateTime, format="%Y-%m-%d %H:%M:%S")
 
@@ -103,4 +105,118 @@ traffic4.ts <- ts(traffic4$Vehicles, frequency = 24)
 plot.ts(traffic4.ts, xlab = "Time", ylab = "Vehicle Count", main = "Junction 4 TS Plot of Vehicles") 
 ```
 
+
+
+```{r}
+# Convert Date column to Date object
+traffic$Date <- as.Date(traffic$Date)
+
+# Extract day of week from Date
+traffic$DayOfWeek <- weekdays(traffic$Date)
+
+# Plot average daily vehicle counts by day of week
+library(ggplot2)
+
+ggplot(traffic, aes(x = DayOfWeek, y = Vehicles, fill = Junction)) +
+  geom_boxplot() +
+  labs(title = "Average Daily Vehicle Counts by Day of Week",
+       x = "Day of Week",
+       y = "Vehicle Count",
+       fill = "Junction") +
+  theme_minimal()
+
+```
+```{r}
+# Extract month from Date
+traffic$Month <- format(traffic$Date, "%B")
+
+# Plot average monthly vehicle counts
+ggplot(traffic, aes(x = Month, y = Vehicles, fill = Junction)) +
+  geom_bar(stat = "summary", fun = "mean") +
+  labs(title = "Average Monthly Vehicle Counts",
+       x = "Month",
+       y = "Average Vehicle Count",
+       fill = "Junction") +
+  theme_minimal()
+
+```
+```{r}
+# Create a binary variable indicating weekday or weekend
+traffic$DayType <- ifelse(weekdays(traffic$Date) %in% c("Saturday", "Sunday"), "Weekend", "Weekday")
+
+# Plot average daily vehicle counts by day type
+ggplot(traffic, aes(x = DayType, y = Vehicles, fill = Junction)) +
+  geom_boxplot() +
+  labs(title = "Average Daily Vehicle Counts by Day Type",
+       x = "Day Type",
+       y = "Vehicle Count",
+       fill = "Junction") +
+  theme_minimal()
+
+
+```
+
+```{r}
+# Assuming your data frame is named 'traffic'
+# Convert DateTime to POSIXct
+traffic$DateTime <- as.POSIXct(traffic$DateTime, format="%Y-%m-%d %H:%M:%S")
+
+# Calculate lagged variables for each Junction
+library(dplyr)
+
+traffic_lagged <- traffic %>%
+  group_by(Junction) %>%
+  arrange(DateTime) %>%
+  mutate(Vehicles_Lag1 = lag(Vehicles),
+         Vehicles_Lag2 = lag(Vehicles, 2),
+         Vehicles_Lag3 = lag(Vehicles, 3))
+
+# Filter out rows with missing lagged values
+traffic_lagged <- filter(traffic_lagged, complete.cases(Vehicles, Vehicles_Lag1, Vehicles_Lag2, Vehicles_Lag3))
+
+# Ensure 'traffic_lagged' is a data frame
+traffic_lagged <- as.data.frame(traffic_lagged)
+
+# Check for infinite values
+if (any(is.infinite(unlist(traffic_lagged)))) {
+  stop("Infinite values detected in the data.")
+}
+
+# Calculate correlation matrix for the lagged vehicle counts of different Junctions
+cor_matrix_junctions <- cor(traffic_lagged %>%
+                              select(starts_with("Vehicles_Lag")), use = "pairwise.complete.obs")
+
+# Plot the correlation matrix as a heatmap
+library(corrplot)
+corrplot(cor_matrix_junctions, method = "color", type = "upper", order = "hclust", tl.cex = 0.7)
+
+
+
+
+```
+```{r}
+# Assuming your data frame is named 'traffic'
+# Convert DateTime to POSIXct
+traffic$DateTime <- as.POSIXct(traffic$DateTime, format="%Y-%m-%d %H:%M:%S")
+
+# Create a time series object
+traffic_ts <- ts(traffic$Vehicles, frequency = 24)
+
+# Time Series Decomposition
+decomposition <- decompose(traffic_ts)
+
+# Plot the original time series
+par(mfrow = c(3, 1))
+plot(traffic_ts, main = "Original Time Series", ylab = "Vehicle Count")
+
+# Plot the trend component
+plot(decomposition$trend, main = "Trend Component", ylab = "Trend")
+
+# Plot the seasonal component
+plot(decomposition$seasonal, main = "Seasonal Component", ylab = "Seasonal")
+
+# Plot the remainder (residuals) component
+plot(decomposition$random, main = "Residuals (Remainder) Component", ylab = "Residuals")
+
+```
 
