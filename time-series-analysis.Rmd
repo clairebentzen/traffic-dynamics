@@ -17,7 +17,9 @@ library(dplyr)
 ## Introduction
 ```{r}
 # read in traffic data
-traffic <- read.csv("traffic.csv")
+traffic <- read.csv("/Users/cfitzpatrick/Downloads/traffic (1).csv")
+
+traffic
 
 # convert date column ot datetime
 traffic$DateTime <- as.POSIXct(traffic$DateTime, format="%Y-%m-%d %H:%M:%S")
@@ -103,4 +105,305 @@ traffic4.ts <- ts(traffic4$Vehicles, frequency = 24)
 plot.ts(traffic4.ts, xlab = "Time", ylab = "Vehicle Count", main = "Junction 4 TS Plot of Vehicles") 
 ```
 
+
+
+```{r}
+# Convert Date column to Date object
+traffic$Date <- as.Date(traffic$Date)
+
+# Extract day of week from Date
+traffic$DayOfWeek <- weekdays(traffic$Date)
+
+# Plot average daily vehicle counts by day of week
+library(ggplot2)
+
+ggplot(traffic, aes(x = DayOfWeek, y = Vehicles, fill = Junction)) +
+  geom_boxplot() +
+  labs(title = "Average Daily Vehicle Counts by Day of Week",
+       x = "Day of Week",
+       y = "Vehicle Count",
+       fill = "Junction") +
+  theme_minimal()
+
+```
+```{r}
+# Extract month from Date
+traffic$Month <- format(traffic$Date, "%B")
+
+# Plot average monthly vehicle counts
+ggplot(traffic, aes(x = Month, y = Vehicles, fill = Junction)) +
+  geom_bar(stat = "summary", fun = "mean") +
+  labs(title = "Average Monthly Vehicle Counts",
+       x = "Month",
+       y = "Average Vehicle Count",
+       fill = "Junction") +
+  theme_minimal()
+
+```
+```{r}
+# Create a binary variable indicating weekday or weekend
+traffic$DayType <- ifelse(weekdays(traffic$Date) %in% c("Saturday", "Sunday"), "Weekend", "Weekday")
+
+# Plot average daily vehicle counts by day type
+ggplot(traffic, aes(x = DayType, y = Vehicles, fill = Junction)) +
+  geom_boxplot() +
+  labs(title = "Average Daily Vehicle Counts by Day Type",
+       x = "Day Type",
+       y = "Vehicle Count",
+       fill = "Junction") +
+  theme_minimal()
+
+
+```
+
+```{r}
+
+# Convert DateTime to POSIXct
+traffic$DateTime <- as.POSIXct(traffic$DateTime, format="%Y-%m-%d %H:%M:%S")
+
+# Calculate lagged variables for each Junction
+library(dplyr)
+
+traffic_lagged <- traffic %>%
+  group_by(Junction) %>%
+  arrange(DateTime) %>%
+  mutate(Vehicles_Lag1 = lag(Vehicles),
+         Vehicles_Lag2 = lag(Vehicles, 2),
+         Vehicles_Lag3 = lag(Vehicles, 3))
+
+# Filter out rows with missing lagged values
+traffic_lagged <- filter(traffic_lagged, complete.cases(Vehicles, Vehicles_Lag1, Vehicles_Lag2, Vehicles_Lag3))
+
+# Ensure 'traffic_lagged' is a data frame
+traffic_lagged <- as.data.frame(traffic_lagged)
+
+# Check for infinite values
+if (any(is.infinite(unlist(traffic_lagged)))) {
+  stop("Infinite values detected in the data.")
+}
+
+# Calculate correlation matrix for the lagged vehicle counts of different Junctions
+cor_matrix_junctions <- cor(traffic_lagged %>%
+                              select(starts_with("Vehicles_Lag")), use = "pairwise.complete.obs")
+
+# Plot the correlation matrix as a heatmap
+library(corrplot)
+corrplot(cor_matrix_junctions, method = "color", type = "upper", order = "hclust", tl.cex = 0.7)
+
+
+
+
+```
+```{r}
+
+# Convert DateTime to POSIXct
+traffic$DateTime <- as.POSIXct(traffic$DateTime, format="%Y-%m-%d %H:%M:%S")
+
+# Create a time series object
+traffic_ts <- ts(traffic$Vehicles, frequency = 24)
+
+# Time Series Decomposition
+decomposition <- decompose(traffic_ts)
+
+# Plot the original time series
+par(mfrow = c(3, 1))
+plot(traffic_ts, main = "Original Time Series", ylab = "Vehicle Count")
+
+# Plot the trend component
+plot(decomposition$trend, main = "Trend Component", ylab = "Trend")
+
+# Plot the seasonal component
+plot(decomposition$seasonal, main = "Seasonal Component", ylab = "Seasonal")
+
+# Plot the remainder (residuals) component
+plot(decomposition$random, main = "Residuals (Remainder) Component", ylab = "Residuals")
+
+```
+
+```{r}
+
+library(lubridate)
+library(dplyr)
+library(ggplot2)
+library(lubridate)
+
+# Look at hour of day for weekends 
+
+# Convert DateTime to a datetime object
+traffic$DateTime <- as.POSIXct(traffic$DateTime, format="%Y-%m-%d %H:%M:%S")
+
+# Create a new column for the hour of the day
+traffic$HourOfDay <- format(traffic$DateTime, "%H")
+
+# Convert HourOfDay to numeric for plotting purposes
+traffic$HourOfDay <- as.numeric(traffic$HourOfDay)
+
+# Create a new column for the day of the week
+traffic$DayOfWeek <- weekdays(traffic$DateTime)
+
+# Filter data to include only weekends
+traffic_weekends <- traffic[traffic$DayOfWeek %in% c("Saturday", "Sunday"), ]
+
+# Plot the average number of vehicles for each hour on weekends
+library(ggplot2)
+ggplot(traffic_weekends, aes(x = HourOfDay, y = Vehicles)) +
+  geom_point() +
+  stat_summary(fun.y = "mean", geom = "point", col = "red", size = 3) +
+  labs(x = "Hour of Day", y = "Average Number of Vehicles", title = "Average Vehicles by Hour on Weekends") +
+  theme_minimal()
+```
+
+```{r}
+# Weekdays hour of day
+
+# Convert DateTime to a datetime object
+traffic$DateTime <- as.POSIXct(traffic$DateTime, format="%Y-%m-%d %H:%M:%S")
+
+# Create a new column for the hour of the day
+traffic$HourOfDay <- format(traffic$DateTime, "%H")
+
+# Convert HourOfDay to numeric for plotting purposes
+traffic$HourOfDay <- as.numeric(traffic$HourOfDay)
+
+# Create a new column for the day of the week
+traffic$DayOfWeek <- weekdays(traffic$DateTime)
+
+# Filter data to include only weekdays
+traffic_weekdays <- traffic[traffic$DayOfWeek %in% c("Monday", "Tuesday", "Wednesday", "Thursday", "Friday"), ]
+
+# Plot the average number of vehicles for each hour on weekdays
+library(ggplot2)
+ggplot(traffic_weekdays, aes(x = HourOfDay, y = Vehicles)) +
+  geom_point() +
+  stat_summary(fun.y = "mean", geom = "point", col = "red", size = 3) +
+  labs(x = "Hour of Day", y = "Average Number of Vehicles", title = "Average Vehicles by Hour on Weekdays") +
+  theme_minimal()
+
+
+```
+
+```{r}
+# Differencing 
+
+library(lubridate)
+
+traffic$DateTime <- as.POSIXct(traffic$DateTime)
+
+# Create a time series object for junctions 1 and 2
+ts_junction1 <- ts(traffic$Vehicles[traffic$Junction == 1], frequency = 24)  # Assuming hourly data
+ts_junction2 <- ts(traffic$Vehicles[traffic$Junction == 2], frequency = 24)  # Assuming hourly data
+
+# Differencing to remove seasonality
+diff_junction1 <- diff(ts_junction1)
+diff_junction2 <- diff(ts_junction2)
+
+# Create a new time series with DateTime
+ts_diff_junction1 <- ts(diff_junction1, start = start(ts_junction1), frequency = frequency(ts_junction1))
+ts_diff_junction2 <- ts(diff_junction2, start = start(ts_junction2), frequency = frequency(ts_junction2))
+
+# Plot the differenced time series for Junctions 1 and 2
+plot(ts_diff_junction1, type = "l", col = "blue",
+     xlab = "Date and Time", ylab = "Differenced Number of Vehicles",
+     main = "Differenced Time Series to Remove Seasonality: Junction 1")
+```
+
+
+```{r}
+lines(ts_diff_junction2, col = "red")
+legend("topright", legend = c("Junction 1", "Junction 2"), col = c("blue", "red"), lty = 1)
+```
+
+
+```{r}
+library(dplyr)
+
+traffic <- read.csv("/Users/cfitzpatrick/Downloads/traffic (1).csv")
+
+# Convert DateTime column to POSIXct if not already
+traffic$DateTime <- as.POSIXct(traffic$DateTime)
+
+# Sort the data frame by DateTime
+traffic <- arrange(traffic, DateTime)
+
+# Print the sorted data frame
+print(traffic)
+```
+```{r}
+# Differencing preprocessing to remove seasonaliy 
+
+# Perform differencing on the "Vehicles" column
+traffic$Vehicles_diff <- c(NA, diff(traffic$Vehicles))
+
+# Print the updated data frame
+print(traffic)
+
+```
+
+```{r}
+#Train/test split 
+
+# Set the percentage of data for training (e.g., 80%)
+train_percentage <- 0.8
+
+# Calculate the index to split the data
+split_index <- round(nrow(traffic) * train_percentage)
+
+# Create training and testing sets
+train_data <- traffic[1:split_index, ]
+test_data <- traffic[(split_index + 1):nrow(traffic), ]
+
+```
+
+
+```{r}
+library(ggplot2)
+
+# Combine training and test data for plotting
+combined_data <- rbind(
+  transform(train_data, set = "Training Set"),
+  transform(test_data, set = "Test Set")
+)
+
+# Plotting the combined data
+ggplot(combined_data, aes(x = DateTime, y = Vehicles_diff, color = set)) +
+  geom_line() +
+  labs(title = "Training and Test Sets", x = "Date and Time", y = "Vehicles Difference")
+
+
+```
+```{r}
+# Plot the training and testing time series with proper date labels
+plot(train_ts, col = "blue", type = "l", lty = 1, ylab = "Vehicles", xlab = "Time", main = "Training and Testing Data for JUNCTION 1", xaxt = "n")
+lines(test_ts, col = "green", lty = 2)
+
+# Add a legend
+legend("topright", legend = c("Training Data", "Test Data"), col = c("blue", "green"), lty = 1:2)
+
+# Customize x-axis labels with date values
+axis.POSIXct(1, at = time(train_ts), labels = format(time(train_ts), "%Y-%m-%d %H:%M:%S"), cex.axis = 0.7, las = 2)
+
+# Fit a simple ARIMA model for JUNCTION 1
+arima_model <- arima(train_ts, order = c(1, 1, 1))
+
+# Make predictions
+arima_forecast <- forecast(arima_model, h = length(test_ts))
+arima_forecast
+
+# Extract point forecasts from arima_forecast
+predicted_values <- arima_forecast$mean
+
+# Extract actual values from test_data
+actual_values <- test_data$Vehicles
+
+# Calculate evaluation metrics
+rmse <- sqrt(mean((predicted_values - actual_values)^2))
+mae <- mean(abs(predicted_values - actual_values))
+
+# Print RMSE
+cat("Root Mean Squared Error (RMSE):", rmse, "\n")
+cat("Mean Absolute Error (MAE):", mae, "\n")
+
+
+
+```
 
