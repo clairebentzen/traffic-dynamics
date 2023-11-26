@@ -1,8 +1,10 @@
 ---
-title: "Unravelling Urban Traffic Dynamics: A Time-Series Analysis"
+title: 'Unravelling Urban Traffic Dynamics: A Time-Series Analysis'
 author: "Claire Bentzen"
-date: "2023-11-15"
-output: html_document
+date: '2023-11-15'
+output:
+  word_document: default
+  html_document: default
 ---
 
 ```{r setup, include=FALSE}
@@ -372,38 +374,142 @@ ggplot(combined_data, aes(x = DateTime, y = Vehicles_diff, color = set)) +
 
 ```
 ```{r}
-# Plot the training and testing time series with proper date labels
-plot(train_ts, col = "blue", type = "l", lty = 1, ylab = "Vehicles", xlab = "Time", main = "Training and Testing Data for JUNCTION 1", xaxt = "n")
-lines(test_ts, col = "green", lty = 2)
 
-# Add a legend
-legend("topright", legend = c("Training Data", "Test Data"), col = c("blue", "green"), lty = 1:2)
-
-# Customize x-axis labels with date values
-axis.POSIXct(1, at = time(train_ts), labels = format(time(train_ts), "%Y-%m-%d %H:%M:%S"), cex.axis = 0.7, las = 2)
-
-# Fit a simple ARIMA model for JUNCTION 1
-arima_model <- arima(train_ts, order = c(1, 1, 1))
-
-# Make predictions
-arima_forecast <- forecast(arima_model, h = length(test_ts))
-arima_forecast
-
-# Extract point forecasts from arima_forecast
-predicted_values <- arima_forecast$mean
-
-# Extract actual values from test_data
-actual_values <- test_data$Vehicles
-
-# Calculate evaluation metrics
-rmse <- sqrt(mean((predicted_values - actual_values)^2))
-mae <- mean(abs(predicted_values - actual_values))
-
-# Print RMSE
-cat("Root Mean Squared Error (RMSE):", rmse, "\n")
-cat("Mean Absolute Error (MAE):", mae, "\n")
+#Lets start with a basic moving average across the entire dataset as a baseline. 
 
 
+window_size <- 7 
+
+# Initialize a list to store models and predictions for each junction
+junction_predictions <- list()
+
+# Create a separate plot for each junction
+for (j in unique(traffic$Junction)) {
+  # Subset the data for the current junction
+  junction_data <- subset(traffic, Junction == j)
+  
+  # Calculate the moving average
+  ma <- stats::filter(junction_data$Vehicles_diff, rep(1/window_size, window_size), sides = 2)
+  
+  # Save the predictions in the list
+  junction_predictions[[as.character(j)]] <- ma
+  
+  # Create a data frame for plotting
+  plot_data <- data.frame(
+    DateTime = junction_data$DateTime,
+    Actual = junction_data$Vehicles_diff,
+    MovingAverage = ma
+  )
+  
+  # Plotting
+  plot(plot_data$DateTime, plot_data$Actual, col = "blue", main = paste("Junction ", j, ": Actual vs. Predicted (Moving Average)"), xlab = "DateTime", ylab = "Vehicles Difference")
+  lines(plot_data$DateTime, plot_data$MovingAverage, col = "red", lty = 2)
+  legend("topright", legend = c("Actual", "Moving Average"), col = c("blue", "red"), lty = 2:1, cex = 0.5)
+}
+
+```
+
+
+```{r}
+
+library(forecast)
+
+# Convert your 'DateTime' column to a time series
+ts_data <- ts(traffic$Vehicles_diff, frequency = 1)
+
+# Set the percentage of data for training (e.g., 80%)
+train_percentage <- 0.8
+
+# Initialize a list to store models and predictions for each junction
+junction_models <- list()
+junction_predictions <- list()
+
+# Iterate over each junction
+for (j in unique(traffic$Junction)) {
+  # Subset the data for the current junction
+  junction_data <- subset(traffic, Junction == j)$Vehicles_diff
+  ts_junction_data <- ts(junction_data, frequency = 1)
+  
+  # Calculate the index to split the data
+  split_index <- round(length(ts_junction_data) * train_percentage)
+  
+  # Create training and testing sets
+  train_data <- window(ts_junction_data, end = split_index)
+  test_data <- window(ts_junction_data, start = split_index + 1)
+  
+  # Fit an ARIMA model
+  arima_model <- auto.arima(train_data)
+  
+  # Save the model in the list
+  junction_models[[as.character(j)]] <- arima_model
+  
+  # Make predictions on the test set
+  predictions <- forecast(arima_model, h = length(test_data))
+  
+  # Save the predictions in the list
+  junction_predictions[[as.character(j)]] <- predictions
+}
+
+# # Plotting only the testing set and predicted values with a smaller legend
+# par(mfrow = c(2, 2))  
+# for (j in unique(traffic$Junction)) {
+#   junction_data <- subset(traffic, Junction == j)$Vehicles_diff
+#   ts_junction_data <- ts(junction_data, frequency = 1)
+#   predictions <- junction_predictions[[as.character(j)]]
+#   
+#   plot(ts_junction_data, col = "blue", main = paste("Junction ", j, ": Actual vs. Predicted"), xlab = "DateTime", ylab = "Vehicles Difference")
+#   lines(predictions$mean, col = "red", lty = 2)
+#   legend("topright", legend = c("Actual", "Predicted"), col = c("blue", "red"), lty = 2:1, cex = 0.5)
+# }
+
+
+par(mfrow = c(2, 2))  # 2x2 layout for the plots
+
+for (j in unique(traffic$Junction)) {
+  junction_data <- subset(traffic, Junction == j)$Vehicles_diff
+  ts_junction_data <- ts(junction_data, frequency = 1)
+  predictions <- junction_predictions[[as.character(j)]]
+  
+  plot(ts_junction_data, col = "blue", main = paste("Junction ", j, ": Actual vs. Predicted"), xlab = "DateTime", ylab = "Vehicles Difference")
+  lines(predictions$mean, col = "red", lty = 2)
+  legend("topright", legend = c("Actual", "Predicted"), col = c("blue", "red"), lty = 2:1, cex = 0.5, inset = 0.02)
+}
+
+```
+
+```{r}
+#Evaluation Metrics to ARIMA 
+
+if (!requireNamespace("dplyr", quietly = TRUE)) {
+  install.packages("dplyr")
+}
+
+# Load the dplyr package
+library(dplyr)
+
+# Initialize an empty data frame for evaluation metrics
+evaluation_metrics <- data.frame(Junction = character(), MAE = numeric(), MSE = numeric(), RMSE = numeric(), stringsAsFactors = FALSE)
+
+# Calculate evaluation metrics for each junction
+for (j in unique(traffic$Junction)) {
+  junction_data <- subset(traffic, Junction == j)$Vehicles_diff
+  ts_junction_data <- ts(junction_data, frequency = 1)
+  predictions <- junction_predictions[[as.character(j)]]
+  
+  # Extract the actual values from the test set
+  actual_values <- as.vector(window(ts_junction_data, start = length(ts_junction_data) - length(predictions$mean) + 1))
+  
+  # Calculate evaluation metrics
+  mae <- mean(abs(predictions$mean - actual_values))
+  mse <- mean((predictions$mean - actual_values)^2)
+  rmse <- sqrt(mse)
+  
+  # Add the results to the data frame
+  evaluation_metrics <- bind_rows(evaluation_metrics, data.frame(Junction = as.character(j), MAE = mae, MSE = mse, RMSE = rmse))
+}
+
+# Print the evaluation metrics
+print(evaluation_metrics)
 
 ```
 
