@@ -19,11 +19,10 @@ library(dplyr)
 ## Introduction
 ```{r}
 # read in traffic data
-traffic <- read.csv("/Users/cfitzpatrick/Downloads/traffic (1).csv")
-
+traffic <- read.csv("traffic.csv")
 traffic
 
-# convert date column ot datetime
+# convert date column to datetime
 traffic$DateTime <- as.POSIXct(traffic$DateTime, format="%Y-%m-%d %H:%M:%S")
 
 # convert Junction column to categorical
@@ -33,6 +32,9 @@ traffic$Junction <- factor(traffic$Junction)
 ```{r}
 # check for missing values by column
 colSums(is.na(traffic))
+
+# remove NAs from dataframe
+traffic <- na.omit(traffic)
 
 # check for duplicate rows
 sum(duplicated(traffic))
@@ -126,7 +128,6 @@ ggplot(traffic, aes(x = DayOfWeek, y = Vehicles, fill = Junction)) +
        y = "Vehicle Count",
        fill = "Junction") +
   theme_minimal()
-
 ```
 ```{r}
 # Extract month from Date
@@ -140,7 +141,6 @@ ggplot(traffic, aes(x = Month, y = Vehicles, fill = Junction)) +
        y = "Average Vehicle Count",
        fill = "Junction") +
   theme_minimal()
-
 ```
 ```{r}
 # Create a binary variable indicating weekday or weekend
@@ -154,12 +154,9 @@ ggplot(traffic, aes(x = DayType, y = Vehicles, fill = Junction)) +
        y = "Vehicle Count",
        fill = "Junction") +
   theme_minimal()
-
-
 ```
 
 ```{r}
-
 # Convert DateTime to POSIXct
 traffic$DateTime <- as.POSIXct(traffic$DateTime, format="%Y-%m-%d %H:%M:%S")
 
@@ -191,10 +188,6 @@ cor_matrix_junctions <- cor(traffic_lagged %>%
 # Plot the correlation matrix as a heatmap
 library(corrplot)
 corrplot(cor_matrix_junctions, method = "color", type = "upper", order = "hclust", tl.cex = 0.7)
-
-
-
-
 ```
 ```{r}
 
@@ -304,13 +297,10 @@ ts_diff_junction1 <- ts(diff_junction1, start = start(ts_junction1), frequency =
 ts_diff_junction2 <- ts(diff_junction2, start = start(ts_junction2), frequency = frequency(ts_junction2))
 
 # Plot the differenced time series for Junctions 1 and 2
+plot.new()
 plot(ts_diff_junction1, type = "l", col = "blue",
      xlab = "Date and Time", ylab = "Differenced Number of Vehicles",
      main = "Differenced Time Series to Remove Seasonality: Junction 1")
-```
-
-
-```{r}
 lines(ts_diff_junction2, col = "red")
 legend("topright", legend = c("Junction 1", "Junction 2"), col = c("blue", "red"), lty = 1)
 ```
@@ -319,7 +309,7 @@ legend("topright", legend = c("Junction 1", "Junction 2"), col = c("blue", "red"
 ```{r}
 library(dplyr)
 
-traffic <- read.csv("/Users/cfitzpatrick/Downloads/traffic (1).csv")
+traffic <- read.csv("traffic.csv")
 
 # Convert DateTime column to POSIXct if not already
 traffic$DateTime <- as.POSIXct(traffic$DateTime)
@@ -373,6 +363,7 @@ ggplot(combined_data, aes(x = DateTime, y = Vehicles_diff, color = set)) +
 
 
 ```
+## Modeling
 ```{r}
 
 #Lets start with a basic moving average across the entire dataset as a baseline. 
@@ -409,8 +400,8 @@ for (j in unique(traffic$Junction)) {
 
 ```
 
-
 ```{r}
+# Seasonal Naive Model
 
 library(forecast)
 
@@ -419,6 +410,52 @@ ts_data <- ts(traffic$Vehicles_diff, frequency = 1)
 
 # Set the percentage of data for training (e.g., 80%)
 train_percentage <- 0.8
+
+# Initialize a list to store models and predictions for each junction
+junction_models_sn <- list()
+junction_predictions_sn <- list()
+
+# Iterate over each junction
+for (j in unique(traffic$Junction)) {
+  # Subset the data for the current junction
+  junction_data <- subset(traffic, Junction == j)$Vehicles_diff
+  ts_junction_data <- ts(junction_data, frequency = 1)
+  
+  # Calculate the index to split the data
+  split_index <- round(length(ts_junction_data) * train_percentage)
+  
+  # Create training and testing sets
+  train_data <- window(ts_junction_data, end = split_index)
+  test_data <- window(ts_junction_data, start = split_index + 1)
+  
+  # Fit an Seasonal Naive model
+  sn_model <- snaive(train_data, h = length(test_data))
+  
+  # Save the model in the list
+  junction_models_sn[[as.character(j)]] <- sn_model
+  
+  # Make predictions on the test set
+  predictions_sn <- forecast(sn_model)
+  
+  # Save the predictions in the list
+  junction_predictions_sn[[as.character(j)]] <- predictions_sn
+}
+
+par(mfrow = c(2, 2))  # 2x2 layout for the plots
+
+for (j in unique(traffic$Junction)) {
+  junction_data <- subset(traffic, Junction == j)$Vehicles_diff
+  ts_junction_data <- ts(junction_data, frequency = 1)
+  predictions_sn <- junction_predictions_sn[[as.character(j)]]
+  
+  plot(ts_junction_data, col = "blue", main = paste("Junction ", j, ": Actual vs. Predicted"), xlab = "DateTime", ylab = "Vehicles Difference")
+  lines(predictions_sn$mean, col = "red", lty = 2)
+  legend("topright", legend = c("Actual", "Predicted"), col = c("blue", "red"), lty = 2:1, cex = 0.5, inset = 0.02)
+}
+```
+
+```{r}
+# ARIMA Model
 
 # Initialize a list to store models and predictions for each junction
 junction_models <- list()
@@ -478,7 +515,7 @@ for (j in unique(traffic$Junction)) {
 ```
 
 ```{r}
-#Evaluation Metrics to ARIMA 
+#Evaluation Metrics to Seasonal Naive
 
 if (!requireNamespace("dplyr", quietly = TRUE)) {
   install.packages("dplyr")
@@ -486,6 +523,36 @@ if (!requireNamespace("dplyr", quietly = TRUE)) {
 
 # Load the dplyr package
 library(dplyr)
+
+# Initialize an empty data frame for evaluation metrics
+evaluation_metrics_sn <- data.frame(Junction = character(), MAE = numeric(), MSE = numeric(), RMSE = numeric(), stringsAsFactors = FALSE)
+
+# Calculate evaluation metrics for each junction
+for (j in unique(traffic$Junction)) {
+  junction_data <- subset(traffic, Junction == j)$Vehicles_diff
+  ts_junction_data <- ts(junction_data, frequency = 1)
+  predictions_sn <- junction_predictions_sn[[as.character(j)]]
+  
+  # Extract the actual values from the test set
+  actual_values <- as.vector(window(ts_junction_data, start = length(ts_junction_data) - length(predictions_sn$mean) + 1))
+  
+  # Calculate evaluation metrics
+  mae <- mean(abs(predictions_sn$mean - actual_values))
+  mse <- mean((predictions_sn$mean - actual_values)^2)
+  rmse <- sqrt(mse)
+  
+  # Add the results to the data frame
+  evaluation_metrics_sn <- bind_rows(evaluation_metrics_sn, data.frame(Junction = as.character(j), MAE = mae, MSE = mse, RMSE = rmse))
+}
+
+# Print the evaluation metrics
+print(evaluation_metrics_sn)
+
+```
+
+
+```{r}
+#Evaluation Metrics to ARIMA 
 
 # Initialize an empty data frame for evaluation metrics
 evaluation_metrics <- data.frame(Junction = character(), MAE = numeric(), MSE = numeric(), RMSE = numeric(), stringsAsFactors = FALSE)
