@@ -189,6 +189,8 @@ cor_matrix_junctions <- cor(traffic_lagged %>%
 library(corrplot)
 corrplot(cor_matrix_junctions, method = "color", type = "upper", order = "hclust", tl.cex = 0.7)
 ```
+
+
 ```{r}
 
 # Convert DateTime to POSIXct
@@ -307,6 +309,9 @@ legend("topright", legend = c("Junction 1", "Junction 2"), col = c("blue", "red"
 
 
 ```{r}
+
+#Split into Junction 1,2,3 and perform log transformation
+
 library(dplyr)
 
 traffic <- read.csv("traffic.csv")
@@ -436,89 +441,122 @@ print(dim(test_junction3))
 
 ```
 
-
-```{r}
-# library(ggplot2)
-# 
-# # Combine training and test data for plotting
-# combined_data <- rbind(
-#   transform(train_data, set = "Training Set"),
-#   transform(test_data, set = "Test Set")
-# )
-# 
-# # Plotting the combined data
-# ggplot(combined_data, aes(x = DateTime, y = Vehicles_diff, color = set)) +
-#   geom_line() +
-#   labs(title = "Training and Test Sets", x = "Date and Time", y = "Vehicles Difference")
-
-```
 ## Modeling
 
 
 
+
 ```{r}
 
-# Function to calculate moving average for a given data frame and column
-moving_average_function <- function(data, column_name, window_size) {
-  data[[paste0(column_name, "_ma")]] <- zoo::rollmean(data[[column_name]], k = window_size, fill = NA)
-  return(data)
+#MOVING AVERAGE MODEL
+
+library(ggplot2)
+# Function to calculate MAE, MSE, and RMSE
+calculate_errors <- function(predictions, actual) {
+  errors <- predictions - actual
+  mae <- mean(abs(errors), na.rm = TRUE)
+  mse <- mean(errors^2, na.rm = TRUE)
+  rmse <- sqrt(mse)
+  return(c(MAE = mae, MSE = mse, RMSE = rmse))
 }
 
-# Apply moving average to each junction dataset
-window_size <- 3  # Adjust the window size as needed
+# Function to calculate Simple Moving Average
+calculate_sma <- function(data, window_size) {
+  sma_values <- zoo::rollmean(data, k = window_size, fill = NA, align = "right")
+  return(sma_values)
+}
 
-junction1_data <- moving_average_function(junction1_data, "Vehicles_log", window_size)
-junction2_data <- moving_average_function(junction2_data, "Vehicles_log", window_size)
-junction3_data <- moving_average_function(junction3_data, "Vehicles_log", window_size)
+# Function to create plots for each junction
+create_plots <- function(train_data, test_data, junction_number, window_size = 3) {
+  train_data$SMA <- calculate_sma(train_data$Vehicles, window_size)
+  test_data$SMA <- calculate_sma(test_data$Vehicles, window_size)
+  
+  ggplot() +
+    geom_line(data = train_data, aes(x = DateTime, y = Vehicles, color = "Training Data")) +
+    geom_line(data = test_data, aes(x = DateTime, y = Vehicles, color = "Test Data")) +
+    geom_line(data = test_data, aes(x = DateTime, y = SMA, color = "Predictions")) +
+    labs(title = paste("Simple Moving Average Model - Junction", junction_number),
+         x = "DateTime",
+         y = "Number of Vehicles") +
+    scale_color_manual(values = c("Training Data" = "blue", "Test Data" = "green", "Predictions" = "red")) +
+    theme_minimal()
+}
 
-library(ggplot2)
+# Apply Simple Moving Average and create plots for each junction
+junctions <- list(junction1 = list(train_data = train_junction1, test_data = test_junction1),
+                  junction2 = list(train_data = train_junction2, test_data = test_junction2),
+                  junction3 = list(train_data = train_junction3, test_data = test_junction3))
 
-junction1_data
+for (junction_name in names(junctions)) {
+  plot_data <- junctions[[junction_name]]
+  plot <- create_plots(plot_data$train_data, plot_data$test_data, junction_number = substr(junction_name, nchar(junction_name), nchar(junction_name)))
+  print(plot)
+}
 
-# Set the width of the plots
-plot_width <- 8
 
-library(ggplot2)
-library(cowplot)
-
-# Set the width of the plots
-plot_width <- 8
-
-# Plot for Junction 1
-ggplot(junction1_data, aes(x = DateTime_J1)) +
-  geom_line(aes(y = Vehicles_log_J1, color = "Original"), size = 1, alpha = 0.8) +
-  geom_line(aes(y = Vehicles_log_ma_J1, color = "Moving Average"), linetype = "dashed", size = 0.3) +
-  labs(title = "Time Series with Moving Averages - Junction 1",
-       x = "DateTime",
-       y = "Vehicles_log_J1") +
-  theme_minimal() +
-  scale_color_manual(values = c("Original" = "blue", "Moving Average" = "red")) +
-  theme(legend.position = "top", legend.text = element_text(size = 19))
-
-# Plot for Junction 2
-ggplot(junction2_data, aes(x = DateTime_J2)) +
-  geom_line(aes(y = Vehicles_log_J2, color = "Original"), size = 1, alpha = 0.8) +
-  geom_line(aes(y = Vehicles_log_ma_J2, color = "Moving Average"), linetype = "dashed", size = 0.3) +
-  labs(title = "Time Series with Moving Averages - Junction 2",
-       x = "DateTime",
-       y = "Vehicles_log_J2") +
-  theme_minimal() +
-  scale_color_manual(values = c("Original" = "blue", "Moving Average" = "red")) +
-  theme(legend.position = "top",  legend.text = element_text(size = 19))
-
-# Plot for Junction 3
-ggplot(junction3_data, aes(x = DateTime_J3)) +
-  geom_line(aes(y = Vehicles_log_J3, color = "Original"), size = 1, alpha = 0.8) +
-  geom_line(aes(y = Vehicles_log_ma_J3, color = "Moving Average"), linetype = "dashed", size = 0.3) +
-  labs(title = "Time Series with Moving Averages - Junction 3",
-       x = "DateTime",
-       y = "Vehicles_log_J3") +
-  theme_minimal() +
-  scale_color_manual(values = c("Original" = "blue", "Moving Average" = "red")) +
-  theme(legend.position = "top",  legend.text = element_text(size = 19))
 
 
 ```
+
+```{r}
+library(ggplot2)
+
+# Function to calculate MAE, MSE, and RMSE
+calculate_errors <- function(predictions, actual) {
+  errors <- predictions - actual
+  mae <- mean(abs(errors), na.rm = TRUE)
+  mse <- mean(errors^2, na.rm = TRUE)
+  rmse <- sqrt(mse)
+  return(c(MA = mae, MSE = mse, RMSE = rmse))
+}
+
+# Function to calculate Simple Moving Average
+calculate_sma <- function(data, window_size) {
+  sma_values <- zoo::rollmean(data, k = window_size, fill = NA, align = "right")
+  return(sma_values)
+}
+
+# Initialize an empty dataframe to store errors
+total_errors <- data.frame(Junction = character(0), MA = numeric(0), MSE = numeric(0), RMSE = numeric(0))
+
+# Apply Simple Moving Average and accumulate errors for each junction
+junctions <- list(junction1 = list(train_data = train_junction1, test_data = test_junction1),
+                  junction2 = list(train_data = train_junction2, test_data = test_junction2),
+                  junction3 = list(train_data = train_junction3, test_data = test_junction3))
+
+for (junction_name in names(junctions)) {
+  plot_data <- junctions[[junction_name]]
+  
+  # Calculate SMA for test data using Vehicles_log
+  plot_data$test_data$SMA <- calculate_sma(plot_data$test_data$Vehicles_log, window_size)
+  
+  # Calculate errors for the current junction using Vehicles_log
+  errors <- calculate_errors(plot_data$test_data$SMA, plot_data$test_data$Vehicles_log)
+  
+  # Add junction name to errors
+  errors <- cbind(Junction = junction_name, errors)
+  
+  # Accumulate errors in the total_errors dataframe
+  total_errors <- rbind(total_errors, data.frame(errors))
+  
+  # Print errors for the current junction
+  cat("Junction", junction_name, "Errors:\n")
+  print(errors)
+  
+  # Create plots using Vehicles_log
+  plot <- create_plots(plot_data$train_data, plot_data$test_data, junction_number = substr(junction_name, nchar(junction_name), nchar(junction_name)))
+  print(plot)
+}
+
+
+# Print the final dataframe with errors for all junctions
+print("Total Errors:")
+print(total_errors)
+
+total_errors
+
+```
+
 
 ```{r}
 library(forecast)
@@ -526,7 +564,23 @@ library(forecast)
 # Seasonal Naive Model
 
 # Set the percentage of data for training (e.g., 80%)
-train_percentage <- 0.8
+  train_percentage <- 0.8
+
+# Initialize a list to store models and predictions for each junction
+junction_models_sn <- list()
+junction_predictions_sn <- list()
+
+# Define a function for fitting and forecasting
+fit_sn_model <- function(train_data, test_data) {
+  # Fit a Seasonal Naive model
+  sn_model <- snaive(train_data, h = length(test_data))
+  
+  # Make predictions on the test set
+  predictions_sn <- forecast(sn_model)
+  
+  # Return the model and predictions
+  return(list(model = sn_model, predictions = predictions_sn))
+}
 
 # Initialize a list to store models and predictions for each junction
 junction_models_sn <- list()
@@ -558,77 +612,22 @@ for (j in 1:3) {
   junction_predictions_sn[[as.character(j)]] <- result_junction$predictions
 }
 
-# Plotting
-par(mfrow = c(2, 2))  # 2x2 layout for the plots
-
-for (j in 1:3) {
-  # Get the data and predictions for the current junction
-  junction_data <- eval(parse(text = paste0("train_junction", j, "$Vehicles_log")))
-  predictions_sn <- junction_predictions_sn[[as.character(j)]]
-  
-  # Plotting
-  plot(junction_data, col = "blue", main = paste("Junction ", j, ": Actual vs. Predicted"), xlab = "DateTime", ylab = "Vehicles_log")
-  lines(predictions_sn$mean, col = "red", lty = 2)
-  legend("topright", legend = c("Actual", "Predicted"), col = c("blue", "red"), lty = 2:1, cex = 0.5, inset = 0.02)
-}
-
-```
-
-
-
-```{r}
-# # Seasonal Naive Model
-# 
-# library(forecast)
-# 
-# # Convert your 'DateTime' column to a time series
-# ts_data <- ts(traffic$Vehicles_diff, frequency = 1)
-# 
-# # Set the percentage of data for training (e.g., 80%)
-# train_percentage <- 0.8
-# 
-# # Initialize a list to store models and predictions for each junction
-# junction_models_sn <- list()
-# junction_predictions_sn <- list()
-# 
-# # Iterate over each junction
-# for (j in unique(traffic$Junction)) {
-#   # Subset the data for the current junction
-#   junction_data <- subset(traffic, Junction == j)$Vehicles_diff
-#   ts_junction_data <- ts(junction_data, frequency = 1)
-#   
-#   # Calculate the index to split the data
-#   split_index <- round(length(ts_junction_data) * train_percentage)
-#   
-#   # Create training and testing sets
-#   train_data <- window(ts_junction_data, end = split_index)
-#   test_data <- window(ts_junction_data, start = split_index + 1)
-#   
-#   # Fit an Seasonal Naive model
-#   sn_model <- snaive(train_data, h = length(test_data))
-#   
-#   # Save the model in the list
-#   junction_models_sn[[as.character(j)]] <- sn_model
-#   
-#   # Make predictions on the test set
-#   predictions_sn <- forecast(sn_model)
-#   
-#   # Save the predictions in the list
-#   junction_predictions_sn[[as.character(j)]] <- predictions_sn
-# }
-# 
+# # Plotting
 # par(mfrow = c(2, 2))  # 2x2 layout for the plots
 # 
-# for (j in unique(traffic$Junction)) {
-#   junction_data <- subset(traffic, Junction == j)$Vehicles_diff
-#   ts_junction_data <- ts(junction_data, frequency = 1)
+# for (j in 1:3) {
+#   # Get the data and predictions for the current junction
+#   junction_data <- eval(parse(text = paste0("train_junction", j, "$Vehicles_log")))
 #   predictions_sn <- junction_predictions_sn[[as.character(j)]]
 #   
-#   plot(ts_junction_data, col = "blue", main = paste("Junction ", j, ": Actual vs. Predicted"), xlab = "DateTime", ylab = "Vehicles Difference")
+#   # Plotting
+#   plot(junction_data, col = "blue", main = paste("Junction ", j, ": Actual vs. Predicted"), xlab = "DateTime", ylab = "Vehicles_log")
 #   lines(predictions_sn$mean, col = "red", lty = 2)
 #   legend("topright", legend = c("Actual", "Predicted"), col = c("blue", "red"), lty = 2:1, cex = 0.5, inset = 0.02)
 # }
+
 ```
+
 
 ```{r}
 # ARIMA Model
@@ -643,8 +642,7 @@ calculate_metrics <- function(actual, forecast) {
 }
 
 # ARIMA Model
-
-# Initialize a list to store models and predictions for each junction
+# Initialize lists to store models, predictions, and metrics for each junction
 junction_models_arima <- list()
 junction_predictions_arima <- list()
 junction_metrics_arima <- list()
@@ -652,7 +650,7 @@ junction_metrics_arima <- list()
 # Define a function for fitting and forecasting ARIMA
 fit_arima_model <- function(train_data, test_data) {
   # Fit an ARIMA model
-arima_model <- Arima(train_data, order = c(1, 1, 1))
+  arima_model <- Arima(train_data, order = c(1, 1, 1))
   
   # Make predictions on the test set
   predictions_arima <- forecast(arima_model, h = length(test_data))
@@ -663,6 +661,9 @@ arima_model <- Arima(train_data, order = c(1, 1, 1))
   # Return the model, predictions, and metrics
   return(list(model = arima_model, predictions = predictions_arima, metrics = metrics))
 }
+
+# Initialize an empty dataframe to store metrics
+total_metrics_arima <- data.frame(Junction = character(0), MAE = numeric(0), MSE = numeric(0), RMSE = numeric(0))
 
 # Iterate over each junction
 for (j in 1:3) {
@@ -677,6 +678,12 @@ for (j in 1:3) {
   junction_models_arima[[as.character(j)]] <- result_junction_arima$model
   junction_predictions_arima[[as.character(j)]] <- result_junction_arima$predictions
   junction_metrics_arima[[as.character(j)]] <- result_junction_arima$metrics
+  
+  # Add junction name to metrics
+  metrics <- cbind(Junction = as.character(j), result_junction_arima$metrics)
+  
+  # Accumulate metrics in the total_metrics_arima dataframe
+  total_metrics_arima <- rbind(total_metrics_arima, data.frame(metrics))
 }
 
 # Print the metrics for each junction with ARIMA
@@ -685,65 +692,9 @@ for (j in 1:3) {
   print(junction_metrics_arima[[as.character(j)]])
 }
 
-
-
-# 
-# # Initialize a list to store models and predictions for each junction
-# junction_models <- list()
-# junction_predictions <- list()
-# 
-# # Iterate over each junction
-# for (j in unique(traffic$Junction)) {
-#   # Subset the data for the current junction
-#   junction_data <- subset(traffic, Junction == j)$Vehicles_diff
-#   ts_junction_data <- ts(junction_data, frequency = 1)
-#   
-#   # Calculate the index to split the data
-#   split_index <- round(length(ts_junction_data) * train_percentage)
-#   
-#   # Create training and testing sets
-#   train_data <- window(ts_junction_data, end = split_index)
-#   test_data <- window(ts_junction_data, start = split_index + 1)
-#   
-#   # Fit an ARIMA model
-#   arima_model <- auto.arima(train_data)
-#   
-#   # Save the model in the list
-#   junction_models[[as.character(j)]] <- arima_model
-#   
-#   # Make predictions on the test set
-#   predictions <- forecast(arima_model, h = length(test_data))
-#   
-#   # Save the predictions in the list
-#   junction_predictions[[as.character(j)]] <- predictions
-# }
-# 
-# 
-# 
-# # # Plotting only the testing set and predicted values with a smaller legend
-# # par(mfrow = c(2, 2))  
-# # for (j in unique(traffic$Junction)) {
-# #   junction_data <- subset(traffic, Junction == j)$Vehicles_diff
-# #   ts_junction_data <- ts(junction_data, frequency = 1)
-# #   predictions <- junction_predictions[[as.character(j)]]
-# #   
-# #   plot(ts_junction_data, col = "blue", main = paste("Junction ", j, ": Actual vs. Predicted"), xlab = "DateTime", ylab = "Vehicles Difference")
-# #   lines(predictions$mean, col = "red", lty = 2)
-# #   legend("topright", legend = c("Actual", "Predicted"), col = c("blue", "red"), lty = 2:1, cex = 0.5)
-# # }
-# 
-# 
-# par(mfrow = c(2, 2))  # 2x2 layout for the plots
-# 
-# for (j in unique(traffic$Junction)) {
-#   junction_data <- subset(traffic, Junction == j)$Vehicles_diff
-#   ts_junction_data <- ts(junction_data, frequency = 1)
-#   predictions <- junction_predictions[[as.character(j)]]
-#   
-#   plot(ts_junction_data, col = "blue", main = paste("Junction ", j, ": Actual vs. Predicted"), xlab = "DateTime", ylab = "Vehicles Difference")
-#   lines(predictions$mean, col = "red", lty = 2)
-#   legend("topright", legend = c("Actual", "Predicted"), col = c("blue", "red"), lty = 2:1, cex = 0.5, inset = 0.02)
-# }
+# Print the final dataframe with metrics for all junctions with ARIMA
+print("Total Metrics ARIMA:")
+print(total_metrics_arima)
 
 ```
 
@@ -751,7 +702,7 @@ for (j in 1:3) {
 
 # SARIMA Model
 
-# Initialize a list to store models and predictions for each junction
+# Initialize lists to store models, predictions, and metrics for each junction
 junction_models_sarima <- list()
 junction_predictions_sarima <- list()
 junction_metrics_sarima <- list()
@@ -760,7 +711,6 @@ junction_metrics_sarima <- list()
 fit_sarima_model <- function(train_data, test_data) {
   # Fit a SARIMA model
   sarima_model <- Arima(train_data, order = c(1, 1, 1), seasonal = list(order = c(1, 1, 1), period = 12))
-
   
   # Make predictions on the test set
   predictions_sarima <- forecast(sarima_model, h = length(test_data))
@@ -771,6 +721,9 @@ fit_sarima_model <- function(train_data, test_data) {
   # Return the model, predictions, and metrics
   return(list(model = sarima_model, predictions = predictions_sarima, metrics = metrics))
 }
+
+# Initialize an empty dataframe to store metrics
+total_metrics_sarima <- data.frame(Junction = character(0), MAE = numeric(0), MSE = numeric(0), RMSE = numeric(0))
 
 # Iterate over each junction
 for (j in 1:3) {
@@ -785,6 +738,12 @@ for (j in 1:3) {
   junction_models_sarima[[as.character(j)]] <- result_junction_sarima$model
   junction_predictions_sarima[[as.character(j)]] <- result_junction_sarima$predictions
   junction_metrics_sarima[[as.character(j)]] <- result_junction_sarima$metrics
+  
+  # Add junction name to metrics
+  metrics <- cbind(Junction = as.character(j), result_junction_sarima$metrics)
+  
+  # Accumulate metrics in the total_metrics_sarima dataframe
+  total_metrics_sarima <- rbind(total_metrics_sarima, data.frame(metrics))
 }
 
 # Print the metrics for each junction with SARIMA
@@ -793,54 +752,10 @@ for (j in 1:3) {
   print(junction_metrics_sarima[[as.character(j)]])
 }
 
+# Print the final dataframe with metrics for all junctions with SARIMA
+print("Total Metrics SARIMA:")
+print(total_metrics_sarima)
 
-# #Fit SARIMA model
-# library(forecast)
-# 
-# # Convert your 'DateTime' column to a time series
-# ts_data <- ts(traffic$Vehicles, frequency = 1)
-# 
-# # Initialize a list to store models and predictions for each junction
-# junction_models_sarima <- list()
-# junction_predictions_sarima <- list()
-# 
-# # Iterate over each junction
-# for (j in unique(traffic$Junction)) {
-#   # Subset the data for the current junction
-#   junction_data <- subset(traffic, Junction == j)$Vehicles
-#   ts_junction_data <- ts(junction_data, frequency = 1)
-#   
-#   # Calculate the index to split the data
-#   split_index <- round(length(ts_junction_data) * train_percentage)
-#   
-#   # Create training and testing sets
-#   train_data <- window(ts_junction_data, end = split_index)
-#   test_data <- window(ts_junction_data, start = split_index + 1)
-#   
-#   # Fit a SARIMA model
-#   sarima_model <- auto.arima(train_data, seasonal = TRUE)
-# 
-#   # Save the model in the list
-#   junction_models_sarima[[as.character(j)]] <- sarima_model
-#   
-#   # Make predictions on the test set
-#   predictions_sarima <- forecast(sarima_model)
-#   
-#   # Save the predictions in the list
-#   junction_predictions_sarima[[as.character(j)]] <- predictions_sarima
-# }
-# 
-# par(mfrow = c(2, 2))  # 2x2 layout for the plots
-# 
-# for (j in unique(traffic$Junction)) {
-#   junction_data <- subset(traffic, Junction == j)$Vehicles
-#   ts_junction_data <- ts(junction_data, frequency = 1)
-#   predictions_sarima <- junction_predictions_sarima[[as.character(j)]]
-#   
-#   plot(ts_junction_data, col = "blue", main = paste("Junction ", j, ": Actual vs. Predicted"), xlab = "DateTime", ylab = "Vehicles Difference")
-#   lines(predictions_sarima$mean, col = "red", lty = 2)
-#   legend("topright", legend = c("Actual", "Predicted"), col = c("blue", "red"), lty = 2:1, cex = 0.5, inset = 0.02)
-# }
 ```
 
 
@@ -904,134 +819,269 @@ for (j in 1:3) {
 }
 
 
-# if (!requireNamespace("dplyr", quietly = TRUE)) {
-#   install.packages("dplyr")
-# }
-# 
-# # Load the dplyr package
-# library(dplyr)
-# 
-# # Initialize an empty data frame for evaluation metrics
-# evaluation_metrics_sn <- data.frame(Junction = character(), MAE = numeric(), MSE = numeric(), RMSE = numeric(), stringsAsFactors = FALSE)
-# 
-# # Calculate evaluation metrics for each junction
-# for (j in unique(traffic$Junction)) {
-#   junction_data <- subset(traffic, Junction == j)$Vehicles_diff
-#   ts_junction_data <- ts(junction_data, frequency = 1)
-#   predictions_sn <- junction_predictions_sn[[as.character(j)]]
-#   
-#   # Extract the actual values from the test set
-#   actual_values <- as.vector(window(ts_junction_data, start = length(ts_junction_data) - length(predictions_sn$mean) + 1))
-#   
-#   # Calculate evaluation metrics
-#   mae <- mean(abs(predictions_sn$mean - actual_values))
-#   mse <- mean((predictions_sn$mean - actual_values)^2)
-#   rmse <- sqrt(mse)
-#   
-#   # Add the results to the data frame
-#   evaluation_metrics_sn <- bind_rows(evaluation_metrics_sn, data.frame(Junction = as.character(j), MAE = mae, MSE = mse, RMSE = rmse))
-# }
-# 
-# # Print the evaluation metrics
-# print(evaluation_metrics_sn)
-
-```
 
 
-```{r}
-#Evaluation Metrics to ARIMA 
 
-# Initialize an empty data frame for evaluation metrics
-evaluation_metrics <- data.frame(Junction = character(), MAE = numeric(), MSE = numeric(), RMSE = numeric(), stringsAsFactors = FALSE)
 
-# Calculate evaluation metrics for each junction
-for (j in unique(traffic$Junction)) {
-  junction_data <- subset(traffic, Junction == j)$Vehicles_diff
-  ts_junction_data <- ts(junction_data, frequency = 1)
-  predictions <- junction_predictions[[as.character(j)]]
-  
-  # Extract the actual values from the test set
-  actual_values <- as.vector(window(ts_junction_data, start = length(ts_junction_data) - length(predictions$mean) + 1))
-  
-  # Calculate evaluation metrics
-  mae <- mean(abs(predictions$mean - actual_values))
-  mse <- mean((predictions$mean - actual_values)^2)
+
+
+# Evaluation Metrics to Seasonal Naive
+
+# Function to calculate MAE, MSE, and RMSE
+calculate_metrics <- function(actual, forecast) {
+  errors <- actual - forecast
+  mae <- mean(abs(errors), na.rm = TRUE)
+  mse <- mean(errors^2, na.rm = TRUE)
   rmse <- sqrt(mse)
   
-  # Add the results to the data frame
-  evaluation_metrics <- bind_rows(evaluation_metrics, data.frame(Junction = as.character(j), MAE = mae, MSE = mse, RMSE = rmse))
+  return(c(MAE = mae, MSE = mse, RMSE = rmse))
 }
 
-# Print the evaluation metrics
-print(evaluation_metrics)
+# Seasonal Naive Model
+
+# Set the percentage of data for training (e.g., 80%)
+train_percentage <- 0.8
+
+# Initialize lists to store models, predictions, and metrics for each junction
+junction_models_sn <- list()
+junction_predictions_sn <- list()
+junction_metrics <- list()
+
+# Define a function for fitting and forecasting
+fit_sn_model <- function(train_data, test_data) {
+  # Fit a Seasonal Naive model
+  sn_model <- snaive(train_data, h = length(test_data))
+  
+  # Make predictions on the test set
+  predictions_sn <- forecast(sn_model)
+  
+  # Calculate metrics
+  metrics <- calculate_metrics(test_data, predictions_sn$mean)
+  
+  # Return the model, predictions, and metrics
+  return(list(model = sn_model, predictions = predictions_sn, metrics = metrics))
+}
+
+# Initialize an empty dataframe to store metrics
+total_metrics_sn <- data.frame(Junction = character(0), MAE = numeric(0), MSE = numeric(0), RMSE = numeric(0))
+
+# Iterate over each junction
+for (j in 1:3) {
+  # Get the train and test data for the current junction
+  train_data <- eval(parse(text = paste0("train_junction", j, "$Vehicles_log")))
+  test_data <- eval(parse(text = paste0("test_junction", j, "$Vehicles_log")))
+  
+  # Fit the Seasonal Naive model
+  result_junction <- fit_sn_model(train_data, test_data)
+  
+  # Save the model, predictions, and metrics in the lists
+  junction_models_sn[[as.character(j)]] <- result_junction$model
+  junction_predictions_sn[[as.character(j)]] <- result_junction$predictions
+  junction_metrics[[as.character(j)]] <- result_junction$metrics
+  
+  # Add junction name to metrics
+  metrics <- cbind(Junction = as.character(j), result_junction$metrics)
+  
+  # Accumulate metrics in the total_metrics_sn dataframe
+  total_metrics_sn <- rbind(total_metrics_sn, data.frame(metrics))
+}
+
+# Print the metrics for each junction
+for (j in 1:3) {
+  cat("\nMetrics for Junction", j, ":\n")
+  print(junction_metrics[[as.character(j)]])
+}
+
+# Print the final dataframe with metrics for all junctions
+print("Total Metrics SN:")
+print(total_metrics_sn)
+
 
 ```
 
-```{r}
-#Evaluation Metrics to SARIMA 
 
-# Initialize an empty data frame for evaluation metrics
-evaluation_metrics <- data.frame(Junction = character(), MAE = numeric(), MSE = numeric(), RMSE = numeric(), stringsAsFactors = FALSE)
 
-# Calculate evaluation metrics for each junction
-for (j in unique(traffic$Junction)) {
-  junction_data <- subset(traffic, Junction == j)$Vehicles
-  ts_junction_data <- ts(junction_data, frequency = 1)
-  predictions <- junction_predictions[[as.character(j)]]
-  
-  # Extract the actual values from the test set
-  actual_values <- as.vector(window(ts_junction_data, start = length(ts_junction_data) - length(predictions$mean) + 1))
-  
-  # Calculate evaluation metrics
-  mae <- mean(abs(predictions$mean - actual_values))
-  mse <- mean((predictions$mean - actual_values)^2)
-  rmse <- sqrt(mse)
-  
-  # Add the results to the data frame
-  evaluation_metrics <- bind_rows(evaluation_metrics, data.frame(Junction = as.character(j), MAE = mae, MSE = mse, RMSE = rmse))
-}
 
-# Print the evaluation metrics
-print(evaluation_metrics)
-```
+
 
 ```{r}
-library(forecast)
 
-# Define a function for plotting ARIMA predictions
-plot_arima_predictions <- function(train_data, test_data, predictions, junction_num) {
-  # Combine train and test data for plotting
-  plot_data <- rbind(train_data, cbind(test_data, predictions = rep(NA, length(test_data))))
-  
+#plotting ARIMA predictions
+plot_arima_predictions <- function(train_data, test_data, predictions, junction_num, line_width = 0.75, plot_width = 10, plot_height = 5) {
   # Convert DateTime to a Date class for plotting
-  plot_data$DateTime <- as.Date(plot_data$DateTime)
+  train_data$DateTime <- as.Date(train_data$DateTime)
+  test_data$DateTime <- as.Date(test_data$DateTime)
+  
+  # Set plot size
+  options(repr.plot.width = plot_width, repr.plot.height = plot_height)
   
   # Plot the time series, training data, and predictions
-  p <- autoplot(plot_data, ts.colour = "blue", ts.linetype = "solid", series = "Train Data") +
-    autolayer(plot_data$DateTime, predictions$mean, ts.colour = "red", ts.linetype = "dashed", series = "Predictions") +
-    autolayer(plot_data$DateTime, test_data$Vehicles_log, ts.colour = "green", ts.linetype = "solid", series = "Test Data") +
-    labs(title = paste("ARIMA Predictions - Junction", junction_num),
-         x = "Date",
-         y = "Vehicles_log") +
-    theme_minimal() +
-    theme(legend.position = "top")
+  plot(train_data$DateTime, train_data$Vehicles_log, type = "o", col = "blue", lwd = line_width,
+       xlab = "Date", ylab = "Vehicles_log", main = paste("ARIMA Predictions - Junction", junction_num))
   
-  return(p)
+  # Add test data to the plot
+  points(test_data$DateTime, test_data$Vehicles_log, type = "o", col = "orange", lwd = line_width)
+  
+  # Add predictions to the plot
+  lines(test_data$DateTime, predictions$mean, col = "red", lty = 5, lwd = line_width)
+  
+# Add legend with smaller text size
+legend("topleft", legend = c("Train Data", "Test Data", "Predictions"), 
+       col = c("blue", "orange", "red"), lty = c(1, 1, 2), lwd = line_width * 2, cex = 1)
 }
 
 # Iterate over each junction to plot ARIMA predictions
 for (j in 1:3) {
   # Get the train, test data, and predictions for the current junction
-  train_data <- eval(parse(text = paste0("train_junction", j, "$Vehicles_log")))
-  test_data <- eval(parse(text = paste0("test_junction", j, "$Vehicles_log")))
+  train_data <- eval(parse(text = paste0("train_junction", j)))
+  test_data <- eval(parse(text = paste0("test_junction", j)))
   predictions <- junction_predictions_arima[[as.character(j)]]
   
-  # Plot ARIMA predictions
-  arima_plot <- plot_arima_predictions(train_data, test_data, predictions, junction_num = j)
-  
-  # Print the plot
-  print(arima_plot)
+  # Plot ARIMA predictions with adjusted parameters
+  plot_arima_predictions(train_data, test_data, predictions, junction_num = j, line_width = 1, plot_width = 20, plot_height = 7)
 }
+
+
+```
+```{r}
+
 
 ```
 
+
+```{r}
+# # Load required libraries
+# library(ggplot2)
+# library(gridExtra)
+# 
+# 
+# # Data for ARIMA model
+# mae_arima <- c(0.3126863, 0.2921633, 0.4216769)
+# mse_arima <- c(0.1345307, 0.1192132, 0.2687715)
+# rmse_arima <- c(0.3667842, 0.3452727, 0.518431)
+# 
+# # Data for SARIMA model
+# mae_sarima <- c(0.3159922, 0.5405169, 0.4228157)
+# mse_sarima <- c(0.1408275, 0.4326395, 0.2936567)
+# rmse_sarima <- c(0.3752699, 0.6577534, 0.5419010)
+# 
+# # Data for Seasonal Naive model
+# mae_seasonal_naive <- c(0.3128057, 0.3079644, 0.4236349)
+# mse_seasonal_naive <- c(0.1339939, 0.1405705, 0.2792485)
+# rmse_seasonal_naive <- c(0.3660518, 0.3749273, 0.5284397)
+# 
+# # Create a data frame for ARIMA model
+# data_arima <- data.frame(Junction = c("Junction 1", "Junction 2", "Junction 3"),
+#                          Model = rep("ARIMA", 3),
+#                          MAE = mae_arima, MSE = mse_arima, RMSE = rmse_arima)
+# 
+# # Create a data frame for SARIMA model
+# data_sarima <- data.frame(Junction = c("Junction 1", "Junction 2", "Junction 3"),
+#                           Model = rep("SARIMA", 3),
+#                           MAE = mae_sarima, MSE = mse_sarima, RMSE = rmse_sarima)
+# 
+# # Create a data frame for Seasonal Naive model
+# data_seasonal_naive <- data.frame(Junction = c("Junction 1", "Junction 2", "Junction 3"),
+#                                   Model = rep("Seasonal Naive", 3),
+#                                   MAE = mae_seasonal_naive, MSE = mse_seasonal_naive, RMSE = rmse_seasonal_naive)
+# # Data for Moving Average model
+# mae_ma <- c(0.04817959, 0.1047791, 0.1375423)
+# mse_ma <- c(0.004186767, 0.01859385, 0.03324423)
+# rmse_ma <- c(0.06470523, 0.1363593, 0.18233)
+# 
+# # Create a data frame for Moving Average model
+# data_ma <- data.frame(Junction = c("Junction 1", "Junction 2", "Junction 3"),
+#                       Model = rep("Moving Average", 3),
+#                       MAE = mae_ma, MSE = mse_ma, RMSE = rmse_ma)
+# 
+# # Combine all data frames including Moving Average model
+# data_combined_all <- rbind(data_arima, data_sarima, data_seasonal_naive, data_ma)
+# 
+# # Function to create a grouped bar chart for all models with increased font size and fixed scales
+# create_grouped_bar_chart_all <- function(metric, title) {
+#   ggplot(data_combined_all, aes(x = Junction, y = get(metric), fill = Model)) +
+#     geom_bar(stat = "identity", position = "dodge") +
+#     labs(title = title, y = metric) +
+#     theme_minimal() +
+#     theme(legend.text = element_text(size = 12),  
+#           legend.title = element_text(size = 15, face = "bold"),  
+#           plot.title = element_text(size = 18, face = "bold")) +  
+#     facet_wrap(~Model, scales = "fixed", ncol = 2)
+# }
+# 
+# # Print the faceted bar chart for all metrics with increased font size and fixed scales
+# print(create_grouped_bar_chart_all("MAE", "MAE Comparison (ARIMA, SARIMA, Seasonal Naive, Moving Average)"))
+# print(create_grouped_bar_chart_all("MSE", "MSE Comparison (ARIMA, SARIMA, Seasonal Naive, Moving Average)"))
+# print(create_grouped_bar_chart_all("RMSE", "RMSE Comparison (ARIMA, SARIMA, Seasonal Naive, Moving Average)"))
+# 
+# 
+# 
+# 
+# 
+# # # Combine all data frames
+# # data_combined <- rbind(data_arima, data_sarima, data_seasonal_naive)
+# # # 
+# # # Function to create a grouped bar chart for all models with increased font size
+# # create_grouped_bar_chart_all <- function(metric, title) {
+# #   ggplot(data_combined, aes(x = Junction, y = get(metric), fill = Model)) +
+# #     geom_bar(stat = "identity", position = "dodge") +
+# #     labs(title = title, y = metric) +
+# #     theme_minimal() +
+# #     theme(legend.text = element_text(size = 12),
+# #           legend.title = element_text(size = 15, face = "bold"),
+# #           plot.title = element_text(size = 18, face = "bold")) +
+# #     facet_wrap(~Model, scales = "free_y", ncol = 3)
+# # }
+# # 
+# # # Print the faceted bar chart for all metrics with increased font size
+# # print(create_grouped_bar_chart_all("MAE", "MAE Comparison (ARIMA, SARIMA, Seasonal Naive)"))
+# # print(create_grouped_bar_chart_all("MSE", "MSE Comparison (ARIMA, SARIMA, Seasonal Naive)"))
+# # print(create_grouped_bar_chart_all("RMSE", "RMSE Comparison (ARIMA, SARIMA, Seasonal Naive)"))
+# 
+# ```
+# ```{r}
+# library(dplyr)
+# library(tidyr)
+# # Combine the data frames
+# data_combined <- rbind(data_arima, data_sarima, data_seasonal_naive)
+# 
+# # Pivot the data for better table creation
+# data_table <- pivot_longer(data_combined, cols = c(MAE, MSE, RMSE), names_to = "Metric", values_to = "Value")
+# 
+# # Spread the data to create separate columns for each metric
+# summary_table <- spread(data_table, Metric, Value)
+# 
+# # Print the summary table
+# print(summary_table)
+# 
+# ```
+# ```{r}
+# # Load required library
+# library(knitr)
+# 
+# # Combine data into a data frame
+# metrics_table <- data.frame(
+#   Junction = rep(c("Junction 1", "Junction 2", "Junction 3"), each = 4),
+#   Model = rep(c("ARIMA", "SARIMA", "Seasonal Naive", "Moving Average"), times = 3),
+#   MAE = c(0.3126863, 0.2921633, 0.4216769, 0.04817959,
+#           0.3159922, 0.5405169, 0.4228157, 0.1047791,
+#           0.3128057, 0.3079644, 0.4236349, 0.1375423),
+#   MSE = c(0.1345307, 0.1192132, 0.2687715, 0.004186767,
+#           0.1408275, 0.4326395, 0.2936567, 0.01859385,
+#           0.1339939, 0.1405705, 0.2792485, 0.03324423),
+#   RMSE = c(0.3667842, 0.3452727, 0.518431, 0.06470523,
+#            0.3752699, 0.6577534, 0.5419010, 0.1363593,
+#            0.3660518, 0.3749273, 0.5284397, 0.18233)
+# )
+# 
+# # Print the table
+# kable(metrics_table, "markdown")
+# 
+# 
+# 
+# 
+
+
+
+```
+ 
