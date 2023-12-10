@@ -980,9 +980,9 @@ create_grouped_bar_chart_all <- function(metric, title) {
 }
 
 # Print the faceted bar chart for all metrics with increased font size
-print(create_grouped_bar_chart_all("MAE", "MAE Comparison (ARIMA, SARIMA, Seasonal Naive)"))
-print(create_grouped_bar_chart_all("MSE", "MSE Comparison (ARIMA, SARIMA, Seasonal Naive)"))
-print(create_grouped_bar_chart_all("RMSE", "RMSE Comparison (ARIMA, SARIMA, Seasonal Naive)"))
+print(create_grouped_bar_chart_all("MAE", "MAE Comparison (ARIMA, MA, SARIMA, Seasonal Naive)"))
+print(create_grouped_bar_chart_all("MSE", "MSE Comparison (ARIMA, MA, SARIMA, Seasonal Naive)"))
+print(create_grouped_bar_chart_all("RMSE", "RMSE Comparison (ARIMA, MA, SARIMA, Seasonal Naive)"))
 ```
 
 ```{r}
