@@ -11,7 +11,7 @@ output:
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
-```{r packages}
+```{r packages, message=FALSE, warning=FALSE}
 library(ggplot2)
 library(corrplot)
 library(dplyr)
@@ -26,7 +26,7 @@ library(knitr)
 ```{r}
 # read in traffic data
 traffic <- read.csv("traffic.csv")
-traffic
+head(traffic)
 
 # convert date column to datetime
 traffic$DateTime <- as.POSIXct(traffic$DateTime, format="%Y-%m-%d %H:%M:%S")
@@ -226,7 +226,7 @@ plot(decomposition$random, main = "Residuals (Remainder) Component", ylab = "Res
 
 ```
 
-```{r}
+```{r, message=FALSE, warning=FALSE}
 
 # Look at hour of day for weekends 
 
@@ -315,8 +315,6 @@ traffic <- read.csv("traffic.csv")
 traffic <- traffic %>%
   select(-ID)
 
-traffic
-
 # Convert DateTime column to POSIXct
 traffic$DateTime <- as.POSIXct(traffic$DateTime)
 
@@ -348,13 +346,13 @@ junction3_data <- log_transformation_function(junction3_data)
 
 # Print the updated data frames
 cat("\nJunction 1 Data with Log Transformation:\n")
-print(junction1_data)
+head(junction1_data)
 
 cat("\nJunction 2 Data with Log Transformation:\n")
-print(junction2_data)
+head(junction2_data)
 
 cat("\nJunction 3 Data with Log Transformation:\n")
-print(junction3_data)
+head(junction3_data)
 
 ```
 
@@ -372,13 +370,13 @@ junction3_data <- difference_function(junction3_data)
 
 # Print the updated data frames
 cat("\nJunction 1 Data with Differencing:\n")
-print(junction1_data)
+head(junction1_data)
 
 cat("\nJunction 2 Data with Differencing:\n")
-print(junction2_data)
+head(junction2_data)
 
 cat("\nJunction 3 Data with Differencing:\n")
-print(junction3_data)
+head(junction3_data)
 
 ```
 
@@ -406,7 +404,7 @@ test_junction2 <- split_junction2$test_set
 train_junction3 <- split_junction3$train_set
 test_junction3 <- split_junction3$test_set
 
-train_junction1
+head(train_junction1)
 
 # Print the dimensions of the training and testing sets for each junction
 cat("\nJunction 1 Training Set Dimensions:\n")
@@ -428,7 +426,7 @@ print(dim(test_junction3))
 
 ## Modeling
 
-```{r}
+```{r, message=FALSE, warning=FALSE}
 
 #MOVING AVERAGE MODEL
 
@@ -476,7 +474,7 @@ for (junction_name in names(junctions)) {
 
 ```
 
-```{r}
+```{r, message=FALSE, warning=FALSE}
 
 # Function to calculate MAE, MSE, and RMSE
 calculate_errors <- function(predictions, actual) {
@@ -588,19 +586,19 @@ for (j in 1:3) {
   junction_predictions_sn[[as.character(j)]] <- result_junction$predictions
 }
 
-# # Plotting
-# par(mfrow = c(2, 2))  # 2x2 layout for the plots
-# 
-# for (j in 1:3) {
-#   # Get the data and predictions for the current junction
-#   junction_data <- eval(parse(text = paste0("train_junction", j, "$Vehicles_log")))
-#   predictions_sn <- junction_predictions_sn[[as.character(j)]]
-# 
-#   # Plotting
-#   plot(junction_data, col = "blue", main = paste("Junction ", j, ": Actual vs. Predicted"), xlab = "DateTime", ylab = "Vehicles_log")
-#   lines(predictions_sn$mean, col = "red", lty = 2)
-#   legend("topright", legend = c("Actual", "Predicted"), col = c("blue", "red"), lty = 2:1, cex = 0.5, inset = 0.02)
-# }
+# Plotting
+par(mfrow = c(2, 2))  # 2x2 layout for the plots
+
+for (j in 1:3) {
+  # Get the data and predictions for the current junction
+  junction_data <- eval(parse(text = paste0("train_junction", j, "$Vehicles_log")))
+  predictions_sn <- junction_predictions_sn[[as.character(j)]]
+
+  # Plotting
+  plot(junction_data, col = "blue", main = paste("Junction ", j, ": Actual vs. Predicted"), xlab = "DateTime", ylab = "Vehicles_log")
+  lines(predictions_sn$fitted, col = "red", lty = 2)
+  legend("topright", legend = c("Actual", "Predicted"), col = c("blue", "red"), lty = 2:1, cex = 0.5, inset = 0.02)
+}
 
 ```
 
@@ -793,12 +791,6 @@ for (j in 1:3) {
   cat("\nMetrics for Junction", j, ":\n")
   print(junction_metrics[[as.character(j)]])
 }
-
-
-
-
-
-
 
 
 # Evaluation Metrics to Seasonal Naive
